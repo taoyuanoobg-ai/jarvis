@@ -2,8 +2,8 @@
 """Safe local n8n Public API helper.
 
 Reads the API key from a root-only file on the VPS so shell commands never need
-header interpolation. Supports verify/list/get/put/delete. It never prints the
-API key or request headers.
+header interpolation. Supports inspect-secret/verify/list/get/put/delete. It
+never prints the API key or request headers.
 """
 
 from __future__ import annotations
@@ -24,6 +24,22 @@ def load_key(path: str) -> str:
     if not key:
         raise RuntimeError("API key file is empty")
     return key
+
+
+def inspect_secret(path: str) -> dict:
+    raw = Path(path).read_text(encoding="utf-8")
+    stripped = raw.strip()
+    return {
+        "exists": True,
+        "raw_length": len(raw),
+        "stripped_length": len(stripped),
+        "has_leading_or_trailing_whitespace": raw != stripped,
+        "contains_newline": "\n" in raw or "\r" in raw,
+        "contains_space": " " in stripped,
+        "starts_with_quote": bool(stripped) and stripped[0] in "\"'",
+        "ends_with_quote": bool(stripped) and stripped[-1] in "\"'",
+        "empty_after_strip": stripped == "",
+    }
 
 
 def request_json(method: str, url: str, key: str, payload=None):
@@ -65,6 +81,7 @@ def main() -> int:
     parser.add_argument("--secret-file", default=DEFAULT_SECRET)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
+    sub.add_parser("inspect-secret")
     sub.add_parser("verify")
 
     p_list = sub.add_parser("list")
@@ -84,6 +101,15 @@ def main() -> int:
     p_delete.add_argument("--output")
 
     args = parser.parse_args()
+
+    if args.cmd == "inspect-secret":
+        try:
+            result = inspect_secret(args.secret_file)
+        except FileNotFoundError:
+            result = {"exists": False}
+        print(json.dumps(result))
+        return 0 if result.get("exists") else 2
+
     key = load_key(args.secret_file)
     base = args.base_url.rstrip("/")
 
