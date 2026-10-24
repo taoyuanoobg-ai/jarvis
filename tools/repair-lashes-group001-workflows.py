@@ -71,7 +71,7 @@ for i in ids[:2]:
    assert all(e['node'] in names for e in branch)
  for n in candidate[i]['nodes']:
   if 'jsCode' in n.get('parameters',{}) and n!=oldnodes.get(n['name']):
-   subprocess.run(['node','-e','new Function('+json.dumps(n['parameters']['jsCode'])+');'],check=True,capture_output=True)
+   subprocess.run(['docker','exec','taoyuan-n8n','node','-e','new Function('+json.dumps(n['parameters']['jsCode'])+');'],check=True,capture_output=True)
  (out/(i+'-candidate.json')).write_text(json.dumps(candidate[i],ensure_ascii=False,indent=2))
 done=[]; report={'ok':False,'backup':str(out),'rollback':{}}
 try:
