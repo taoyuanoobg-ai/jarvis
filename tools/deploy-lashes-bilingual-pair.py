@@ -30,7 +30,7 @@ INTAKE_NAME = "Drive Content Intake V1"
 LASHES_ID = "lashesProdDraftV1"
 LASHES_NAME = "Lashes - Production Draft VPS"
 ADDITIVES_ID = "additivesDraftV1"
-ADDITIVES_NAME = "Additives - Production Draft"
+ADDITIVES_NAME = "Additives - Production Draft VPS"
 
 
 def load_key() -> str:
