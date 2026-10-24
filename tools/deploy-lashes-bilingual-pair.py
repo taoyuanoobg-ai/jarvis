@@ -6,7 +6,8 @@ Safety properties:
 - Verifies exact workflow IDs and names before writes.
 - Backs up Intake, Lashes, and Additives before any mutation.
 - PUTs Intake then Lashes using same IDs only.
-- GET-verifies canonical writable payloads after each PUT.
+- GET-verifies semantic writable payloads after each PUT.
+- Verification tolerates only n8n's integer/float normalization inside node.position.
 - If either deployment or verification fails, rolls both workflows back.
 - Verifies Additives workflow fingerprint is unchanged.
 - Never creates or deletes workflows.
@@ -80,8 +81,29 @@ def writable(obj: dict) -> dict:
     return {k: obj[k] for k in WRITABLE}
 
 
+def semantic_writable(obj: dict) -> dict:
+    """Normalize only node.position integral floats, matching observed n8n PUT behavior."""
+    payload = json.loads(json.dumps(writable(obj), ensure_ascii=False))
+    nodes = payload.get("nodes", [])
+    if isinstance(nodes, list):
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            position = node.get("position")
+            if not isinstance(position, list):
+                continue
+            normalized = []
+            for value in position:
+                if isinstance(value, float) and value.is_integer():
+                    normalized.append(int(value))
+                else:
+                    normalized.append(value)
+            node["position"] = normalized
+    return payload
+
+
 def fp(obj: dict) -> str:
-    raw = json.dumps(writable(obj), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    raw = json.dumps(semantic_writable(obj), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -105,7 +127,7 @@ def put_verify(key: str, workflow_id: str, expected_name: str, candidate: dict) 
         raise RuntimeError(f"PUT changed workflow ID for {workflow_id}")
     after = get_workflow(key, workflow_id, expected_name)
     if fp(after) != fp(candidate):
-        raise RuntimeError(f"GET verify fingerprint mismatch for {workflow_id}")
+        raise RuntimeError(f"GET semantic verify fingerprint mismatch for {workflow_id}")
     return after
 
 
@@ -154,6 +176,7 @@ def main() -> int:
 
     result = {
         "ok": False,
+        "verification_mode": "semantic_position_numeric_normalization_only",
         "backup_dir": str(backup_dir),
         "intake": {"id": INTAKE_ID, "before_fingerprint": fp(before_intake), "candidate_fingerprint": fp(intake_candidate), "deployed": False, "verified": False},
         "lashes": {"id": LASHES_ID, "before_fingerprint": fp(before_lashes), "candidate_fingerprint": fp(lashes_candidate), "deployed": False, "verified": False},
